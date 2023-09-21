@@ -1,11 +1,15 @@
+import base64
+from datetime import datetime
+import io
 import os
 
+from PIL import Image, ImageDraw, ImageFont
 from loguru import logger
 from selenium import webdriver
 
 
 def return_opt():
-    chrome_options = webdriver.chrome.options.Options()
+    chrome_options = webdriver.ChromeOptions()
     print_settings = {
         "recentDestinations": [
             {
@@ -42,3 +46,47 @@ def generate_names(input_names, output_dir, plugin_name):
         logger.warning(f"No exist result found. Makedir {target_path}!")
         need_fetch_names = input_names
     return need_fetch_names
+
+
+def watermark(image_bytes, watermark_text: str):
+    font = ImageFont.truetype("Adobe 楷体 Std R.otf", 33, encoding="unic")
+    image = Image.open(io.BytesIO(image_bytes))
+    width, height = image.size
+    assert width > 20 and height > 40
+    drawing = ImageDraw.Draw(image)
+    drawing.text(xy=(20, 40), text=watermark_text, fill="red", font=font)
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue())
+
+
+def watermark_test():
+    image = Image.new("RGB", (559, 320), (255, 255, 255))
+    buffered = io.BytesIO()
+    image.save(buffered, format="PNG")
+    return_bytes = watermark(buffered.getvalue(), "哈哈哈哈")
+    image = Image.open(io.BytesIO(base64.b64decode(return_bytes)))
+    image.show()
+
+
+def capture_screenshot(
+    webdriver,
+    plugin_name,
+    file_name,
+    output_dir
+):
+    pdf_data = webdriver.execute_cdp_cmd(
+        "Page.captureScreenshot",
+        cmd_args={"format": "png", "captureBeyondViewport": True},
+    )
+    timestamp = datetime.now().strftime("%Y-%m-%d")
+    pdf_data = watermark(
+        image_bytes=base64.b64decode(pdf_data["data"]),
+        watermark_text=f"{timestamp} - {file_name}",
+    )
+    with open(f"{output_dir}/{plugin_name}/{file_name}.png", "wb") as file:
+        file.write(base64.b64decode(pdf_data))
+
+
+if __name__ == "__main__":
+    watermark_test()

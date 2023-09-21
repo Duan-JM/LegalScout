@@ -1,4 +1,3 @@
-import base64
 from functools import partial
 from multiprocessing import Pool
 import time
@@ -8,7 +7,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from tqdm import tqdm
 
-from .utils import fetch_names, generate_names, return_opt
+from .utils import capture_screenshot, fetch_names, generate_names, return_opt
 
 PLUGIN_NAME = "csrc"
 
@@ -76,9 +75,9 @@ def find_evidence_func(name: str, output_dir: str):
         file_name = name + " - 系统异常"
         logger.error(f"Abnoraml Found - {file_name}")
 
-    pdf_data = driver.execute_cdp_cmd("Page.printToPDF", return_opt()[1])
-    with open(f"{output_dir}/{PLUGIN_NAME}/{file_name}.pdf", "wb") as file:
-        file.write(base64.b64decode(pdf_data["data"]))
+    # save screeshot
+    capture_screenshot(webdriver=driver, plugin_name=PLUGIN_NAME,
+                       file_name=file_name, output_dir=output_dir)
     driver.quit()
 
 
