@@ -16,17 +16,17 @@ from .utils import capture_screenshot, fetch_names, generate_names, return_opt
 PLUGIN_NAME = "shixin_csrc"
 MANUAL_OFFSET = 40  # fix logo width
 MAX_SLIP_FAILED_CNT = 5
+POSITION = (60, 120)
+FILLED_COLOR = "black"
 
 
 def find_slide_position(background_img):
-    """ use bounding box to detect target position """
-    image = cv2.cvtColor(
-        background_img, cv2.COLOR_BGR2RGB)  # Converting BGR to RGB
+    """use bounding box to detect target position"""
+    image = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)  # Converting BGR to RGB
     canny = cv2.Canny(image, 500, 700)
 
     # ==> find bounding box
-    contours, _ = cv2.findContours(
-        canny, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(canny, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
     dx, width = 0, 0
     for _, contour in enumerate(contours):
         x, y, w, h = cv2.boundingRect(contour)
@@ -43,7 +43,7 @@ def verify_slip_capture(webdriver):
         by=By.XPATH,
         value="/html/body/div/div/div/div[3]/div/div[2]/div/div[1]/div/img",
     )
-    raw_image_data = background_img.get_attribute('src').split(',')[1]
+    raw_image_data = background_img.get_attribute("src").split(",")[1]
     nparr = np.frombuffer(base64.b64decode(raw_image_data), np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
     move_dx, _ = find_slide_position(img)
@@ -55,14 +55,14 @@ def verify_slip_capture(webdriver):
     )
     move = ActionChains(webdriver)
     move.click_and_hold(btn)
-    move.move_by_offset(move_dx+MANUAL_OFFSET, 0)
+    move.move_by_offset(move_dx + MANUAL_OFFSET, 0)
     move.release(btn)
     move.perform()
     time.sleep(3)
 
 
 def find_evidence_func(name: str, output_dir: str):
-    """ find evidence func """
+    """find evidence func"""
     driver = webdriver.Chrome(options=return_opt()[0])
     driver.implicitly_wait(3)
     driver.get(f"https://neris.csrc.gov.cn/shixinchaxun/")
@@ -73,7 +73,8 @@ def find_evidence_func(name: str, output_dir: str):
     # click
     time.sleep(1)
     search_inbox = driver.find_element(
-        by=By.XPATH, value="/html/body/div/div/div/div[2]/div/div[2]/form/div[1]/div/div/input"
+        by=By.XPATH,
+        value="/html/body/div/div/div/div[2]/div/div[2]/form/div[1]/div/div/input",
     )
     search_inbox.send_keys(name)
 
@@ -101,8 +102,14 @@ def find_evidence_func(name: str, output_dir: str):
     else:
         slip_capture_verified_failed = True
         file_name = name + " - 验证验证失败"
-        capture_screenshot(webdriver=driver, plugin_name=PLUGIN_NAME,
-                           file_name=file_name, output_dir=output_dir)
+        capture_screenshot(
+            webdriver=driver,
+            plugin_name=PLUGIN_NAME,
+            file_name=file_name,
+            output_dir=output_dir,
+            position=POSITION,
+            filled_color=FILLED_COLOR,
+        )
         driver.quit()
 
     if not slip_capture_verified_failed:
@@ -131,8 +138,14 @@ def find_evidence_func(name: str, output_dir: str):
             logger.error(f"Abnoraml Found - {file_name}")
 
         # save screeshot
-        capture_screenshot(webdriver=driver, plugin_name=PLUGIN_NAME,
-                           file_name=file_name, output_dir=output_dir)
+        capture_screenshot(
+            webdriver=driver,
+            plugin_name=PLUGIN_NAME,
+            file_name=file_name,
+            output_dir=output_dir,
+            position=POSITION,
+            filled_color=FILLED_COLOR,
+        )
         driver.quit()
 
 

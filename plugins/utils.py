@@ -2,6 +2,7 @@ import base64
 from datetime import datetime
 import io
 import os
+from typing import Tuple
 
 from PIL import Image, ImageDraw, ImageFont
 from loguru import logger
@@ -48,13 +49,15 @@ def generate_names(input_names, output_dir, plugin_name):
     return need_fetch_names
 
 
-def watermark(image_bytes, watermark_text: str):
+def watermark(
+    image_bytes, watermark_text: str, position: Tuple, filled_color: str = "black"
+):
     font = ImageFont.truetype("Adobe 楷体 Std R.otf", 33, encoding="unic")
     image = Image.open(io.BytesIO(image_bytes))
     width, height = image.size
-    assert width > 20 and height > 40
+    assert width > position[0] and height > position[1]
     drawing = ImageDraw.Draw(image)
-    drawing.text(xy=(20, 40), text=watermark_text, fill="red", font=font)
+    drawing.text(xy=position, text=watermark_text, fill=filled_color, font=font)
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue())
@@ -64,12 +67,21 @@ def watermark_test():
     image = Image.new("RGB", (559, 320), (255, 255, 255))
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
-    return_bytes = watermark(buffered.getvalue(), "哈哈哈哈")
+    return_bytes = watermark(
+        buffered.getvalue(), "哈哈哈哈", position=(20, 40), filled_color="red"
+    )
     image = Image.open(io.BytesIO(base64.b64decode(return_bytes)))
     image.show()
 
 
-def capture_screenshot(webdriver, plugin_name, file_name, output_dir):
+def capture_screenshot(
+    webdriver,
+    plugin_name: str,
+    file_name: str,
+    output_dir: str,
+    position: Tuple,
+    filled_color: str,
+):
     pdf_data = webdriver.execute_cdp_cmd(
         "Page.captureScreenshot",
         cmd_args={"format": "png", "captureBeyondViewport": True},
@@ -78,6 +90,8 @@ def capture_screenshot(webdriver, plugin_name, file_name, output_dir):
     pdf_data = watermark(
         image_bytes=base64.b64decode(pdf_data["data"]),
         watermark_text=f"{timestamp} - {file_name}",
+        position=position,
+        filled_color=filled_color,
     )
     with open(f"{output_dir}/{plugin_name}/{file_name}.png", "wb") as file:
         file.write(base64.b64decode(pdf_data))

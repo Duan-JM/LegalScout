@@ -16,6 +16,8 @@ from .utils import (
 )
 
 PLUGIN_NAME = "上交所信息披露"
+POSITION = (40, 60)
+FILLED_COLOR = "black"
 
 
 def find_evidence_func(name: str, output_dir: str):
@@ -72,6 +74,8 @@ def find_evidence_func(name: str, output_dir: str):
         plugin_name=PLUGIN_NAME,
         file_name=file_name,
         output_dir=output_dir,
+        position=POSITION,
+        filled_color=FILLED_COLOR,
     )
     driver.quit()
 
