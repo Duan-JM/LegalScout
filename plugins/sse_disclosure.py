@@ -67,8 +67,12 @@ def find_evidence_func(name: str, output_dir: str):
         logger.error(f"Abnoraml Found - {file_name}")
 
     # save screeshot
-    capture_screenshot(webdriver=driver, plugin_name=PLUGIN_NAME,
-                       file_name=file_name, output_dir=output_dir)
+    capture_screenshot(
+        webdriver=driver,
+        plugin_name=PLUGIN_NAME,
+        file_name=file_name,
+        output_dir=output_dir,
+    )
     driver.quit()
 
 

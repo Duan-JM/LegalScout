@@ -69,12 +69,7 @@ def watermark_test():
     image.show()
 
 
-def capture_screenshot(
-    webdriver,
-    plugin_name,
-    file_name,
-    output_dir
-):
+def capture_screenshot(webdriver, plugin_name, file_name, output_dir):
     pdf_data = webdriver.execute_cdp_cmd(
         "Page.captureScreenshot",
         cmd_args={"format": "png", "captureBeyondViewport": True},
