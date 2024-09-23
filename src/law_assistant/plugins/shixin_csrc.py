@@ -4,15 +4,15 @@ from multiprocessing import Pool
 import time
 
 import cv2
-from loguru import logger
+from doraemon.logger.slogger import create_logger
 import numpy as np
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from tqdm import tqdm
 
-from .utils import capture_screenshot, fetch_names, generate_names, return_opt
-
+from law_assistant.plugins.utils import capture_screenshot, fetch_names, generate_names, return_opt
+logger = create_logger(__name__)
 PLUGIN_NAME = "shixin_csrc"
 MANUAL_OFFSET = 40  # fix logo width
 MAX_SLIP_FAILED_CNT = 5
@@ -64,8 +64,8 @@ def verify_slip_capture(webdriver):
 def find_evidence_func(name: str, output_dir: str):
     """find evidence func"""
     driver = webdriver.Chrome(options=return_opt()[0])
-    driver.implicitly_wait(3)
     driver.get(f"https://neris.csrc.gov.cn/shixinchaxun/")
+    driver.implicitly_wait(2)
 
     # status init
     slip_capture_verified_failed = False

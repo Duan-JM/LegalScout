@@ -1,10 +1,12 @@
 import argparse
-from tqdm import tqdm
 import os
 from typing import List
-from loguru import logger
 
-from constants import AVALIABLE_SOURCES_FUNCS
+from doraemon.logger.slogger import create_logger
+
+from law_assistant.constants import AVALIABLE_SOURCES_FUNCS
+
+logger = create_logger(__name__)
 
 
 def main(input_file: str, source_list: List[str], output_dir: str, process_num: int):

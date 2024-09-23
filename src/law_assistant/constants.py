@@ -1,4 +1,4 @@
-from plugins import csrc, sse_disclosure, szse_disclosure, shixin_csrc
+from law_assistant.plugins import csrc, sse_disclosure, szse_disclosure, shixin_csrc
 
 AVALIABLE_SOURCES_FUNCS = {
     "csrc": csrc.api_v1,

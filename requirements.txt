@@ -1,2 +1,0 @@
-loguru
-selenium==4.12.0

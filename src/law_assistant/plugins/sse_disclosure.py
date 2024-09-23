@@ -3,43 +3,64 @@ from multiprocessing import Pool
 from time import time
 import time
 
-from loguru import logger
+from doraemon.logger.slogger import create_logger
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from tqdm import tqdm
 
-from .utils import capture_screenshot, fetch_names, generate_names, return_opt
+from law_assistant.plugins.utils import capture_screenshot, fetch_names, generate_names, return_opt
 
-PLUGIN_NAME = "深交所信息披露"
+PLUGIN_NAME = "上交所信息披露"
 POSITION = (40, 60)
 FILLED_COLOR = "black"
 
 
+logger = create_logger(__name__)
+
 def find_evidence_func(name: str, output_dir: str):
     driver = webdriver.Chrome(options=return_opt()[0])
-    driver.implicitly_wait(3)
-    driver.get("http://www.szse.cn/disclosure/supervision/measure/pushish/index.html")
-    time.sleep(1)
-    input_box = driver.find_element(by=By.ID, value="1800_jgxxgk_cf_tab2_txtBj")
-    input_box.send_keys(name)
-    button = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div[5]/div/div[2]/div/div/div[2]/div/div[7]/button",
+    driver.implicitly_wait(9)
+
+    driver.get(f"http://www.sse.com.cn/home/search/index.shtml")
+
+    # step 01: input name
+    search_input = driver.find_element(
+        by=By.XPATH, value="/html/body/div[8]/div/div[1]/div/div[1]/div/div[1]/input[12]"
     )
-    button.click()
-    time.sleep(2)
+    search_input.send_keys(name)
+    time.sleep(1)
+
+    # step 03: click 监管
+    search_button = driver.find_element(
+        by=By.XPATH, value="/html/body/div[8]/div/div[1]/div/div[2]/div/div/span[6]"
+    )
+    search_button.click()
+    time.sleep(1)
+
+    # step 03: click 精准搜索
+    search_button = driver.find_element(
+        by=By.XPATH, value="/html/body/div[8]/div/div[2]/div[1]/div[6]/div[1]/div/div/div/div[1]/div/div[1]/span[1]"
+    )
+    search_button.click()
+    time.sleep(1)
+
+    # step 04: 搜索
+    search_button = driver.find_element(
+        by=By.XPATH, value="/html/body/div[8]/div/div[1]/div/div[1]/div/div[1]/input[13]"
+    )
+    search_button.click()
+    time.sleep(3)
 
     # check
     system_error_flag = False
     find_normal_flag = False
     try:
-        find_flag = driver.find_element(
-            by=By.XPATH,
-            value="/html/body/div[5]/div/div[2]/div/div/div[4]/div/div[2]/div/div/div[3]",
+        no_find_text = driver.find_element(
+            by=By.XPATH, value="/html/body/div[8]/div/div[2]/div[1]/div[6]/div[2]/ul/li"
         )
-        find_normal_flag = "没有找到" in find_flag.text
+        find_normal_flag = "没有找到您" in no_find_text.text
     except:
-        system_error_flag = False
+        system_error_flag = True
 
     if not system_error_flag:
         if find_normal_flag:

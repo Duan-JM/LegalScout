@@ -20,5 +20,5 @@
 # Example Usage
 ## Example Commands
 ```bash
-python3 fetch_evidence.py --input_file ./names.txt --output_dir `pwd`/ot --sources sse_disclosure,csrc,szse_disclosure,shixin_csrc -- process_num 2
+python3 -m law_assistant.fetch_evidence --input_file ./names.txt --output_dir `pwd`/ot --sources sse_disclosure,csrc,szse_disclosure,shixin_csrc --process_num 2
 ```

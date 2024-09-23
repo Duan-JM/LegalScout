@@ -5,9 +5,10 @@ import os
 from typing import Tuple
 
 from PIL import Image, ImageDraw, ImageFont
-from loguru import logger
+from doraemon.logger.slogger import create_logger
 from selenium import webdriver
 
+logger = create_logger(__name__)
 
 def return_opt():
     chrome_options = webdriver.ChromeOptions()
@@ -40,7 +41,9 @@ def generate_names(input_names, output_dir, plugin_name):
     if os.path.exists(target_path):
         exist_names = os.listdir(target_path)
         logger.info(f"Found exist {len(exist_names)} pdf")
-        exist_names = [name.split(".")[0] for name in exist_names]
+        normal_names = [".".join(name.split(".")[:-1]) for name in exist_names if '异常' not in name]
+        abnormal_names = [name.split('-')[0].strip() for name in exist_names if '异常' in name]
+        exist_names = normal_names + abnormal_names
         need_fetch_names = list(set(input_names) - set(exist_names))
     else:
         os.mkdir(target_path)

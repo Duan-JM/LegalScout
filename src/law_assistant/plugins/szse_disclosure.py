@@ -1,69 +1,45 @@
 from functools import partial
 from multiprocessing import Pool
+from time import time
 import time
 
-from loguru import logger
+from doraemon.logger.slogger import create_logger
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from tqdm import tqdm
 
-from .utils import capture_screenshot, fetch_names, generate_names, return_opt
+from law_assistant.plugins.utils import capture_screenshot, fetch_names, generate_names, return_opt
 
-PLUGIN_NAME = "csrc"
+PLUGIN_NAME = "深交所信息披露"
 POSITION = (40, 60)
 FILLED_COLOR = "black"
 
 
+logger = create_logger(__name__)
+
 def find_evidence_func(name: str, output_dir: str):
     driver = webdriver.Chrome(options=return_opt()[0])
+    driver.get("http://www.szse.cn/disclosure/supervision/measure/pushish/index.html")
     driver.implicitly_wait(3)
-
-    driver.get(f"http://www.csrc.gov.cn/csrc/c100033/zfxxgk_zdgk.shtml#tab=gkzn")
-
-    # click
-    time.sleep(1)
-    manual_bogo = driver.find_element(
-        by=By.XPATH, value="/html/body/div[1]/div[3]/div[2]/ul/li[5]/div[1]"
-    )
-    manual_bogo.click()
-
-    time.sleep(1)
-    manual_bogo = driver.find_element(
+    time.sleep(2)
+    input_box = driver.find_element(by=By.ID, value="1800_jgxxgk_cf_tab2_txtBj")
+    input_box.send_keys(name)
+    button = driver.find_element(
         by=By.XPATH,
-        value="/html/body/div[1]/div[3]/div[2]/ul/li[5]/div[2]/div[1]/div[2]",
+        value="/html/body/div[5]/div/div[2]/div/div/div[2]/div/div[7]/button",
     )
-    manual_bogo.click()
-
-    time.sleep(1)
-    manual_bogo = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div[1]/div[3]/div[2]/ul/li[5]/div[2]/div[1]/div[2]/div/ul/li[9]/a",
-    )
-    manual_bogo.click()
-
-    time.sleep(1)
-    search_inbox = driver.find_element(
-        by=By.XPATH, value="/html/body/div[1]/div[3]/div[1]/div[2]/div/input[3]"
-    )
-    search_inbox.send_keys(name)
-
-    time.sleep(1)
-    search_btn = driver.find_element(
-        by=By.XPATH, value="/html/body/div[1]/div[3]/div[1]/div[2]/div/a"
-    )
-    search_btn.click()
+    button.click()
+    time.sleep(2)
 
     # check
     system_error_flag = False
     find_normal_flag = False
     try:
-        time.sleep(2)
-        find_text = driver.find_element(
+        find_flag = driver.find_element(
             by=By.XPATH,
-            value="/html/body/div[1]/div[3]/div[3]/div[5]/div[1]/div/div/div[2]/div/div[1]/ul/table/tbody/tr[2]/td",
+            value="/html/body/div[5]/div/div[2]/div/div/div[4]/div/div[2]/div/div/div[3]",
         )
-        if "抱歉，没找到相关结果" in find_text.text:
-            find_normal_flag = True
+        find_normal_flag = "没有找到" in find_flag.text
     except:
         system_error_flag = False
 
@@ -72,7 +48,7 @@ def find_evidence_func(name: str, output_dir: str):
             file_name = name
         else:
             file_name = name + " - 异常"
-            logger.warning(f"Found abnormal {file_name}")
+            logger.warning(f"Abnoraml Found - {file_name}")
     else:
         file_name = name + " - 系统异常"
         logger.error(f"Abnoraml Found - {file_name}")
