@@ -37,3 +37,11 @@ python3 -m law_assistant.fetch_evidence --input_file ./names.txt --output_dir `p
   - [ ] Need Slide Verified
 - [ ] REMAIN TODO: [专利和集成电路布图设计业务办理统一身份认证平台](https://tysf.cponline.cnipa.gov.cn/am/#/user/login)
   - Need Extra Login
+
+# Example Usage
+
+## Example Commands
+
+```bash
+python3 -m law_assistant.fetch_evidence --input_file ./names.txt --output_dir `pwd`/ot --sources sse_disclosure,csrc,szse_disclosure,shixin_csrc --process_num 2
+```
