@@ -2,19 +2,19 @@ from functools import partial
 from multiprocessing import Pool
 import time
 
-from doraemon.logger.slogger import create_logger
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from tqdm import tqdm
+import structlog
 
 from law_assistant.plugins.utils import capture_screenshot, fetch_names, generate_names, return_opt
+
+logger = structlog.getLogger(__name__)
 
 PLUGIN_NAME = "csrc"
 POSITION = (40, 60)
 FILLED_COLOR = "black"
 
-
-logger = create_logger(__name__)
 
 
 def find_evidence_func(name: str, output_dir: str):

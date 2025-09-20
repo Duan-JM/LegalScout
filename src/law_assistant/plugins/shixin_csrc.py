@@ -4,7 +4,7 @@ from multiprocessing import Pool
 import time
 
 import cv2
-from doraemon.logger.slogger import create_logger
+import structlog
 import numpy as np
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
@@ -12,7 +12,7 @@ from selenium.webdriver.common.by import By
 from tqdm import tqdm
 
 from law_assistant.plugins.utils import capture_screenshot, fetch_names, generate_names, return_opt
-logger = create_logger(__name__)
+logger = structlog.getLogger(__name__)
 PLUGIN_NAME = "shixin_csrc"
 MANUAL_OFFSET = 40  # fix logo width
 MAX_SLIP_FAILED_CNT = 5

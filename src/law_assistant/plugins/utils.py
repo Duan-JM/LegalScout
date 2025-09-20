@@ -4,11 +4,11 @@ import os
 from datetime import datetime
 from typing import Tuple
 
-from doraemon.logger.slogger import create_logger
+import structlog
 from PIL import Image, ImageDraw, ImageFont
 from selenium import webdriver
 
-logger = create_logger(__name__)
+logger = structlog.getLogger(__name__)
 
 
 def return_opt():
@@ -60,7 +60,7 @@ def generate_names(input_names, output_dir, plugin_name):
 def watermark(
     image_bytes, watermark_text: str, position: Tuple, filled_color: str = "black"
 ):
-    font = ImageFont.truetype("Adobe 楷体 Std R.otf", 33, encoding="unic")
+    font = ImageFont.truetype("STHeiti Light.ttc", 33, encoding="unic")
     image = Image.open(io.BytesIO(image_bytes))
     width, height = image.size
     assert width > position[0] and height > position[1]

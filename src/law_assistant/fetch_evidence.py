@@ -2,11 +2,13 @@ import argparse
 import os
 from typing import List
 
-from doraemon.logger.slogger import create_logger
+import structlog
+from doraemon.logger.slogger import configure_structlog
 
 from law_assistant.constants import AVALIABLE_SOURCES_FUNCS
 
-logger = create_logger(__name__)
+configure_structlog()
+logger = structlog.getLogger(__name__)
 
 
 def main(input_file: str, source_list: List[str], output_dir: str, process_num: int):
@@ -21,10 +23,10 @@ def main(input_file: str, source_list: List[str], output_dir: str, process_num: 
         AVALIABLE_SOURCES_FUNCS[source](
             input_file=input_file, output_dir=output_dir, process_num=process_num
         )
-        logger.success(
+        logger.info(
             f"Finished fetch from {source}, {len(source_list) - idx - 1} remained"
         )
-    logger.success(f"Finished, please check your result in {output_dir}")
+    logger.info(f"Finished, please check your result in {output_dir}")
 
 
 if __name__ == "__main__":

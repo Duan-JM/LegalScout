@@ -8,7 +8,7 @@ version = "0.0.1"
 description = "Python doraemon dev tool box"
 authors = [ "Vincent Duan <vincent.duan95@outlook.com>",]
 maintainers = [ "Vincent Duan <vincent.duan95@outlook.com>",]
-repository = "https://github.com/Duan-JM/doraemon"
+repository = "https://github.com/Duan-JM/LegalScout.git"
 classifiers = [ "Development Status :: 5 - Production/Stable", "Intended Audience :: Developers", "License :: OSI Approved :: Apache Software License", "Topic :: Software Development :: Libraries",]
 keywords = [ "tools"]
 include = [ "LICENSE", "README.md"]
@@ -35,7 +35,7 @@ ipdb = ">0"
 openai = "^1.37"
 
 [tool.poetry.dependencies.doraemon]
-git = "https://github.com/Duan-JM/doraemon"
+git = "https://github.com/Oligarchy-with-DeamoV/doraemon.git"
 branch = "main"
 
 [tool.pytest.ini_options]
