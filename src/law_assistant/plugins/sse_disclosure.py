@@ -1,103 +1,43 @@
-import time
-from functools import partial
-from multiprocessing import Pool
+"""
+上交所信息披露查询插件
+"""
 
-import structlog
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from tqdm import tqdm
+from playwright.sync_api import Page
 
-from law_assistant.plugins.utils import (capture_screenshot, fetch_names,
-                                         generate_names, return_opt)
-
-logger = structlog.getLogger(__name__)
-PLUGIN_NAME = "上交所信息披露"
-POSITION = (40, 60)
-FILLED_COLOR = "black"
+from law_assistant.plugins.base import SimpleSearchPlugin
+from law_assistant.plugins.selectors import SSESelectors
+from law_assistant.plugins.utils import safe_click, safe_fill
 
 
+class SSEDisclosurePlugin(SimpleSearchPlugin):
+    """上交所信息披露查询插件"""
+
+    @property
+    def plugin_name(self) -> str:
+        return "上交所信息披露"
+
+    @property
+    def selectors(self):
+        return SSESelectors
+
+    def before_search(self, page: Page) -> None:
+        """页面加载后等待"""
+        page.wait_for_timeout(3000)
+
+    def execute_search(self, page: Page, name: str, _) -> None:
+        safe_fill(page, SSESelectors.SEARCH_INPUT, name)
+        safe_click(page, SSESelectors.SUPERVISION_BUTTON)
+        safe_click(page, SSESelectors.PRECISE_SEARCH_BUTTON)
+        safe_click(page, SSESelectors.SEARCH_BUTTON)
 
 
-def find_evidence_func(name: str, output_dir: str):
-    driver = webdriver.Chrome(options=return_opt()[0])
-    driver.implicitly_wait(9)
-
-    driver.get(f"http://www.sse.com.cn/home/search/index.shtml")
-
-    # step 01: input name
-    search_input = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div[8]/div/div[1]/div/div[1]/div/div[1]/input[12]",
-    )
-    search_input.send_keys(name)
-    time.sleep(1)
-
-    # step 03: click 监管
-    search_button = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div[9]/div/div[1]/div/div[2]/div/div/span[5]",
-    )
-    search_button.click()
-    time.sleep(1)
-
-    # step 03: click 精准搜索
-    search_button = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div[9]/div/div[2]/div[1]/div[6]/div[1]/div/div/div/div[1]/div/div[1]",
-    )
-    search_button.click()
-    time.sleep(1)
-
-    # step 04: 搜索
-    search_button = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div[9]/div/div[1]/div/div[1]/div/div[1]/input[13]",
-    )
-    search_button.click()
-    time.sleep(5)
-
-    # check
-    system_error_flag = False
-    find_normal_flag = False
-    try:
-        no_find_text = driver.find_element(
-            by=By.XPATH, value="/html/body/div[9]/div/div[2]/div[1]/div[6]/div[2]/ul/li"
-        )
-        find_normal_flag = "没有找到您" in no_find_text.text
-    except Exception as e:
-        print(e)
-        system_error_flag = True
-
-    if not system_error_flag:
-        if find_normal_flag:
-            file_name = name
-        else:
-            file_name = name + " - 异常"
-            logger.warning(f"Abnoraml Found - {file_name}")
-    else:
-        file_name = name + " - 系统异常"
-        logger.error(f"Abnoraml Found - {file_name}")
-
-    # save screeshot
-    capture_screenshot(
-        webdriver=driver,
-        plugin_name=PLUGIN_NAME,
-        file_name=file_name,
-        output_dir=output_dir,
-        position=POSITION,
-        filled_color=FILLED_COLOR,
-    )
-    driver.quit()
+_plugin_instance = SSEDisclosurePlugin()
 
 
-def api_v1(input_file: str, output_dir: str, process_num: int = 10):
-    require_names = fetch_names(input_file)
-    names = generate_names(
-        input_names=require_names, output_dir=output_dir, plugin_name=PLUGIN_NAME
-    )
-    pbar = tqdm(total=len(names))
-    with Pool(processes=process_num) as pool:
-        for _ in pool.imap_unordered(
-            partial(find_evidence_func, output_dir=output_dir), names
-        ):
-            pbar.update(1)
+def find_evidence_func(name: str, output_dir: str, dev: bool = False):
+    _plugin_instance.find_evidence_func(name, output_dir, dev)
+
+
+def api_v1(input_file: str, output_dir: str, process_num: int = 10, dev: bool = False):
+    """插件入口函数（向后兼容函数）"""
+    _plugin_instance.api_v1(input_file, output_dir, process_num, dev)

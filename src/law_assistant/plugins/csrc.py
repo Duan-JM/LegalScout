@@ -1,105 +1,43 @@
-from functools import partial
-from multiprocessing import Pool
-import time
+"""
+证监会行政处罚查询插件
 
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from tqdm import tqdm
-import structlog
+"""
 
-from law_assistant.plugins.utils import capture_screenshot, fetch_names, generate_names, return_opt
+from playwright.sync_api import Page
 
-logger = structlog.getLogger(__name__)
-
-PLUGIN_NAME = "csrc"
-POSITION = (40, 60)
-FILLED_COLOR = "black"
+from law_assistant.plugins.base import SimpleSearchPlugin
+from law_assistant.plugins.selectors import CSRCSelectors
+from law_assistant.plugins.utils import safe_click, safe_fill
 
 
+class CSRCPlugin(SimpleSearchPlugin):
+    """证监会行政处罚查询插件"""
 
-def find_evidence_func(name: str, output_dir: str):
-    driver = webdriver.Chrome(options=return_opt()[0])
-    driver.implicitly_wait(3)
+    @property
+    def plugin_name(self) -> str:
+        return "csrc"
 
-    driver.get(f"http://www.csrc.gov.cn/csrc/c100033/zfxxgk_zdgk.shtml#tab=gkzn")
+    @property
+    def selectors(self):
+        return CSRCSelectors
 
-    # click
-    time.sleep(1)
-    manual_bogo = driver.find_element(
-        by=By.XPATH, value="/html/body/div[1]/div[3]/div[2]/ul/li[5]/div[1]"
-    )
-    manual_bogo.click()
-
-    time.sleep(1)
-    manual_bogo = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div[1]/div[3]/div[2]/ul/li[5]/div[2]/div[1]/div[2]",
-    )
-    manual_bogo.click()
-
-    time.sleep(1)
-    manual_bogo = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div[1]/div[3]/div[2]/ul/li[5]/div[2]/div[1]/div[2]/div/ul/li[9]/a",
-    )
-    manual_bogo.click()
-
-    time.sleep(1)
-    search_inbox = driver.find_element(
-        by=By.XPATH, value="/html/body/div[1]/div[3]/div[1]/div[2]/div/input[3]"
-    )
-    search_inbox.send_keys(name)
-
-    time.sleep(1)
-    search_btn = driver.find_element(
-        by=By.XPATH, value="/html/body/div[1]/div[3]/div[1]/div[2]/div/a"
-    )
-    search_btn.click()
-
-    # check
-    system_error_flag = False
-    find_normal_flag = False
-    try:
-        time.sleep(2)
-        find_text = driver.find_element(
-            by=By.XPATH,
-            value="/html/body/div[1]/div[3]/div[3]/div[5]/div[1]/div/div/div[2]/div/div[1]/ul/table/tbody/tr[2]/td",
-        )
-        if "抱歉，没找到相关结果" in find_text.text:
-            find_normal_flag = True
-    except:
-        system_error_flag = False
-
-    if not system_error_flag:
-        if find_normal_flag:
-            file_name = name
-        else:
-            file_name = name + " - 异常"
-            logger.warning(f"Found abnormal {file_name}")
-    else:
-        file_name = name + " - 系统异常"
-        logger.error(f"Abnoraml Found - {file_name}")
-
-    # save screeshot
-    capture_screenshot(
-        webdriver=driver,
-        plugin_name=PLUGIN_NAME,
-        file_name=file_name,
-        output_dir=output_dir,
-        position=POSITION,
-        filled_color=FILLED_COLOR,
-    )
-    driver.quit()
+    def execute_search(self, page: Page, name: str, _) -> None:
+        """执行搜索操作"""
+        safe_click(page, CSRCSelectors.MENU_LEVEL1)
+        safe_click(page, CSRCSelectors.MENU_LEVEL2)
+        safe_click(page, CSRCSelectors.MENU_ITEM)
+        safe_fill(page, CSRCSelectors.SEARCH_INPUT, name)
+        safe_click(page, CSRCSelectors.SEARCH_BUTTON)
 
 
-def api_v1(input_file: str, output_dir: str, process_num: int = 10):
-    require_names = fetch_names(input_file)
-    names = generate_names(
-        input_names=require_names, output_dir=output_dir, plugin_name=PLUGIN_NAME
-    )
-    pbar = tqdm(total=len(names))
-    with Pool(processes=process_num) as pool:
-        for _ in pool.imap_unordered(
-            partial(find_evidence_func, output_dir=output_dir), names
-        ):
-            pbar.update(1)
+_plugin_instance = CSRCPlugin()
+
+
+def find_evidence_func(name: str, output_dir: str, dev: bool = False):
+    """证监会行政处罚查询（向后兼容函数）"""
+    _plugin_instance.find_evidence_func(name, output_dir, dev)
+
+
+def api_v1(input_file: str, output_dir: str, process_num: int = 10, dev: bool = False):
+    """插件入口函数（向后兼容函数）"""
+    _plugin_instance.api_v1(input_file, output_dir, process_num, dev)

@@ -1,162 +1,151 @@
+"""证券期货市场失信记录查询插件"""
+
 import base64
-from functools import partial
-from multiprocessing import Pool
-import time
+from typing import Optional, Tuple
 
 import cv2
-import structlog
 import numpy as np
-from selenium import webdriver
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.by import By
-from tqdm import tqdm
+import structlog
+from playwright.sync_api import Page
 
-from law_assistant.plugins.utils import capture_screenshot, fetch_names, generate_names, return_opt
+from law_assistant.plugins.base import BasePlugin
+from law_assistant.plugins.selectors import ShixinCSRCSelectors
+from law_assistant.plugins.utils import safe_click, safe_fill
+
 logger = structlog.getLogger(__name__)
-PLUGIN_NAME = "shixin_csrc"
-MANUAL_OFFSET = 40  # fix logo width
-MAX_SLIP_FAILED_CNT = 5
-POSITION = (60, 120)
-FILLED_COLOR = "black"
 
 
-def find_slide_position(background_img):
-    """use bounding box to detect target position"""
-    image = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)  # Converting BGR to RGB
-    canny = cv2.Canny(image, 500, 700)
+class ShixinCSRCPlugin(BasePlugin):
+    """证券期货市场失信记录查询插件（带滑块验证码）"""
 
-    # ==> find bounding box
-    contours, _ = cv2.findContours(canny, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
-    dx, width = 0, 0
-    for _, contour in enumerate(contours):
-        x, y, w, h = cv2.boundingRect(contour)
-        if (w > 30) and (h > 30):
-            dx = x
-            width = w
-            cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
-    return dx, width
+    @property
+    def plugin_name(self) -> str:
+        return "shixin_csrc"
 
+    @property
+    def watermark_position(self) -> Tuple[int, int]:
+        return (60, 120)
 
-def verify_slip_capture(webdriver):
-    time.sleep(1)
-    background_img = webdriver.find_element(
-        by=By.XPATH,
-        value="/html/body/div/div/div/div[3]/div/div[2]/div/div[1]/div/img",
-    )
-    raw_image_data = background_img.get_attribute("src").split(",")[1]
-    nparr = np.frombuffer(base64.b64decode(raw_image_data), np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    move_dx, _ = find_slide_position(img)
+    @property
+    def base_url(self) -> str:
+        return ShixinCSRCSelectors.BASE_URL
 
-    # ==> slide button
-    btn = webdriver.find_element(
-        by=By.XPATH,
-        value="/html/body/div/div/div/div[3]/div/div[2]/div/div[2]/div/div",
-    )
-    move = ActionChains(webdriver)
-    move.click_and_hold(btn)
-    move.move_by_offset(move_dx + MANUAL_OFFSET, 0)
-    move.release(btn)
-    move.perform()
-    time.sleep(3)
+    def _find_slide_position(self, background_img: np.ndarray) -> Tuple[int, int]:
+        """
+        使用边界框检测滑块目标位置
 
+        Args:
+            background_img: 背景图片的 NumPy 数组
 
-def find_evidence_func(name: str, output_dir: str):
-    """find evidence func"""
-    driver = webdriver.Chrome(options=return_opt()[0])
-    driver.get(f"https://neris.csrc.gov.cn/shixinchaxun/")
-    driver.implicitly_wait(2)
+        Returns:
+            Tuple[int, int]: (滑块移动距离, Logo宽度)
+        """
+        image = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
+        canny = cv2.Canny(image, 500, 700)
 
-    # status init
-    slip_capture_verified_failed = False
+        # 查找边界框
+        contours, _ = cv2.findContours(canny, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        dx, width = 0, 0
+        for _, contour in enumerate(contours):
+            x, y, w, h = cv2.boundingRect(contour)
+            if (w > 30) and (h > 30):
+                dx = x
+                width = w
+                cv2.rectangle(image, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        return dx, width
 
-    # click
-    time.sleep(1)
-    search_inbox = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div/div/div/div[2]/div/div[2]/form/div[1]/div/div/input",
-    )
-    search_inbox.send_keys(name)
+    def _verify_slide_captcha(self, page: Page) -> None:
+        """
+        验证滑块验证码
 
-    #  TODO(Duan-JM): maybe later we need input id card
-    # id_card_input = driver.find_element(
-    #     by=By.XPATH, value="/html/body/div/div/div/div[2]/div/div[2]/form/div[2]/div/div/input"
-    # )
-    # id_card_input.send_keys(id_card)
+        通过 OpenCV 图像处理识别滑块位置，然后模拟鼠标拖动操作
 
-    time.sleep(1)
-    manual_bogo = driver.find_element(
-        by=By.XPATH,
-        value="/html/body/div/div/div/div[2]/div/div[2]/form/div[3]/div/div",
-    )
-    manual_bogo.click()
+        Args:
+            page: Playwright 页面对象
+        """
+        page.wait_for_timeout(1000)
 
-    failed_cnt = 0
-    while len(driver.window_handles) == 1 and failed_cnt < MAX_SLIP_FAILED_CNT:
-        verify_slip_capture(webdriver=driver)
-        failed_cnt += 1
+        # 获取验证码图片
+        background_img = page.locator(self.selectors.CAPTCHA_IMAGE)
+        raw_image_data = background_img.get_attribute("src").split(",")[1]
+        nparr = np.frombuffer(base64.b64decode(raw_image_data), np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    if len(driver.window_handles) > 1 and failed_cnt < MAX_SLIP_FAILED_CNT:
-        # switch to jump out windows
-        driver.switch_to.window(driver.window_handles[1])
-    else:
-        slip_capture_verified_failed = True
-        file_name = name + " - 验证验证失败"
-        capture_screenshot(
-            webdriver=driver,
-            plugin_name=PLUGIN_NAME,
-            file_name=file_name,
-            output_dir=output_dir,
-            position=POSITION,
-            filled_color=FILLED_COLOR,
-        )
-        driver.quit()
+        # 计算滑块位置
+        move_dx, logo_width = self._find_slide_position(img)
 
-    if not slip_capture_verified_failed:
-        # check
-        system_error_flag = False
-        find_normal_flag = False
-        try:
-            time.sleep(2)
-            find_text = driver.find_element(
-                by=By.XPATH,
-                value="/html/body/div/div/div/div[4]/div[2]/ul/li/div[2]",
-            )
-            if "无符合条件记录" in find_text.text:
-                find_normal_flag = True
-        except:
-            system_error_flag = False
+        # 获取滑块按钮
+        btn = page.locator(self.selectors.SLIDER_BUTTON)
+        box = btn.bounding_box()
 
-        if not system_error_flag:
-            if find_normal_flag:
-                file_name = name
-            else:
-                file_name = name + " - 异常"
-                logger.warning(f"Found abnormal {file_name}")
-        else:
-            file_name = name + " - 系统异常"
-            logger.error(f"Abnoraml Found - {file_name}")
+        if box:
+            # 计算目标位置：滑块移动距离 + Logo宽度 + 手动偏移量
+            target_x = box["x"] + move_dx + logo_width + self.selectors.MANUAL_OFFSET
 
-        # save screeshot
-        capture_screenshot(
-            webdriver=driver,
-            plugin_name=PLUGIN_NAME,
-            file_name=file_name,
-            output_dir=output_dir,
-            position=POSITION,
-            filled_color=FILLED_COLOR,
-        )
-        driver.quit()
+            # 模拟人工拖动：移动到按钮 -> 按下 -> 拖动到目标位置 -> 释放
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+            page.mouse.down()
+            page.mouse.move(target_x, box["y"] + box["height"] / 2, steps=10)
+            page.mouse.up()
 
+        page.wait_for_timeout(3000)
 
-def api_v1(input_file: str, output_dir: str, process_num: int = 10):
-    require_names = fetch_names(input_file)
-    names = generate_names(
-        input_names=require_names, output_dir=output_dir, plugin_name=PLUGIN_NAME
-    )
-    pbar = tqdm(total=len(names))
-    with Pool(processes=process_num) as pool:
-        for _ in pool.imap_unordered(
-            partial(find_evidence_func, output_dir=output_dir), names
+    @property
+    def selectors(self):
+        return ShixinCSRCSelectors
+
+    def handle_search_error(self, page: Page, error: Exception) -> Optional[str]:
+        """自定义错误信息"""
+        error_str = str(error).lower()
+        if "captcha" in error_str or "验证" in error_str:
+            return "验证码验证失败"
+        return None
+
+    def execute_search(self, page: Page, name: str, context) -> None:
+        """执行搜索操作"""
+
+        safe_fill(page, self.selectors.NAME_INPUT, name)
+        safe_click(page, ShixinCSRCSelectors.VERIFY_BUTTON)
+        failed_cnt = 0
+        initial_page_count = len(context.pages)
+        while (
+            len(context.pages) == initial_page_count
+            and failed_cnt < self.selectors.MAX_SLIP_FAILED_CNT
         ):
-            pbar.update(1)
+            try:
+                self._verify_slide_captcha(page)
+                failed_cnt += 1
+            except Exception as e:
+                logger.warning(
+                    f"[{self.plugin_name}] Captcha verification attempt "
+                    f"{failed_cnt} failed: {str(e)}"
+                )
+                failed_cnt += 1
+
+        if len(context.pages) > initial_page_count:
+            page = context.pages[-1]
+            logger.info(
+                f"[{self.plugin_name}] Captcha verified successfully for {name}"
+            )
+
+        else:
+            logger.error(
+                f"[{self.plugin_name}] Captcha verification failed after "
+                f"{failed_cnt} attempts for {name}"
+            )
+            raise RuntimeError("验证码验证失败")
+
+
+_plugin_instance = ShixinCSRCPlugin()
+
+
+def find_evidence_func(name: str, output_dir: str, dev: bool = False):
+    """证券期货市场失信记录查询（向后兼容函数）"""
+
+    _plugin_instance.find_evidence_func(name, output_dir, dev)
+
+
+def api_v1(input_file: str, output_dir: str, process_num: int = 10, dev: bool = False):
+    """插件入口函数（向后兼容函数）"""
+
+    _plugin_instance.api_v1(input_file, output_dir, process_num, dev)
