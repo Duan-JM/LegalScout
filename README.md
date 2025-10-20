@@ -17,11 +17,13 @@ poetry install
 ### 2. 启动 Browserless 容器
 
 **方式一：使用 Docker Compose（推荐）**
+
 ```bash
 docker-compose up -d
 ```
 
 **方式二：直接使用 Docker**
+
 ```bash
 docker run -d -p 3000:3000 \
   --name browserless \
@@ -93,6 +95,7 @@ python3 -m law_assistant.fetch_evidence \
 ```
 
 ## 环境变量配置
+
 ```bash
 # 自定义 Browserless URL（默认：http://localhost:3000）
 export BROWSERLESS_URL=http://192.168.1.100:3000
@@ -100,3 +103,4 @@ export BROWSERLESS_URL=http://192.168.1.100:3000
 # 运行爬虫
 python3 -m law_assistant.fetch_evidence --input_file ./names.txt --output_dir ./output --sources csrc --process_num 5 --debug 1
 ```
+

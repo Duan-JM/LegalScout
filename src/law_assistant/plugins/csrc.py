@@ -5,12 +5,12 @@
 
 from playwright.sync_api import Page
 
-from law_assistant.plugins.base import SimpleSearchPlugin
+from law_assistant.plugins.base import BasePlugin
 from law_assistant.plugins.selectors import CSRCSelectors
 from law_assistant.plugins.utils import safe_click, safe_fill
 
 
-class CSRCPlugin(SimpleSearchPlugin):
+class CSRCPlugin(BasePlugin):
     """证监会行政处罚查询插件"""
 
     @property

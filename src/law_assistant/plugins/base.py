@@ -13,13 +13,9 @@ import structlog
 from playwright.sync_api import Page, sync_playwright
 from tqdm import tqdm
 
-from law_assistant.plugins.utils import (
-    capture_screenshot,
-    check_search_result,
-    fetch_names,
-    generate_names,
-    get_browser_and_page,
-)
+from law_assistant.plugins.utils import (capture_screenshot,
+                                         check_search_result, fetch_names,
+                                         generate_names, get_browser_and_page)
 
 logger = structlog.getLogger(__name__)
 
@@ -66,10 +62,9 @@ class BasePlugin(ABC):
         pass
 
     @property
-    @abstractmethod
     def base_url(self) -> str:
-        """目标网站 URL"""
-        pass
+        """从选择器配置中获取 base_url"""
+        return self.selectors.BASE_URL
 
     @property
     def page_load_timeout(self) -> int:
@@ -299,32 +294,3 @@ class BasePlugin(ABC):
                 f"[{self.plugin_name}] Failed to capture error screenshot "
                 f"for {name}: {screenshot_error}"
             )
-
-
-class SimpleSearchPlugin(BasePlugin):
-    """
-    简单搜索插件的中间层
-
-    适用于大多数标准搜索场景（csrc、sse、szse）
-    提供了基于选择器配置的通用实现
-
-    子类只需：
-    1. 定义 plugin_name、base_url、selectors
-    2. 实现 execute_search() 方法
-    """
-
-    @property
-    @abstractmethod
-    def selectors(self):
-        """
-        选择器配置对象（从 selectors.py 导入）
-
-        例如：
-            return CSRCSelectors
-        """
-        pass
-
-    @property
-    def base_url(self) -> str:
-        """从选择器配置中获取 base_url"""
-        return self.selectors.BASE_URL
