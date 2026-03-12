@@ -27,8 +27,8 @@ class ShixinCSRCPlugin(BasePlugin):
         return (60, 120)
 
     @property
-    def base_url(self) -> str:
-        return ShixinCSRCSelectors.BASE_URL
+    def selectors(self):
+        return ShixinCSRCSelectors
 
     def _find_slide_position(self, background_img: np.ndarray) -> Tuple[int, int]:
         """
@@ -43,10 +43,9 @@ class ShixinCSRCPlugin(BasePlugin):
         image = cv2.cvtColor(background_img, cv2.COLOR_BGR2RGB)
         canny = cv2.Canny(image, 500, 700)
 
-        # 查找边界框
         contours, _ = cv2.findContours(canny, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
         dx, width = 0, 0
-        for _, contour in enumerate(contours):
+        for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
             if (w > 30) and (h > 30):
                 dx = x
@@ -59,11 +58,10 @@ class ShixinCSRCPlugin(BasePlugin):
         验证滑块验证码
 
         通过 OpenCV 图像处理识别滑块位置，然后模拟鼠标拖动操作
-
-        Args:
-            page: Playwright 页面对象
         """
-        page.wait_for_timeout(1000)
+        page.wait_for_selector(
+            self.selectors.CAPTCHA_IMAGE, state="visible", timeout=5000
+        )
 
         # 获取验证码图片
         background_img = page.locator(self.selectors.CAPTCHA_IMAGE)
@@ -79,20 +77,15 @@ class ShixinCSRCPlugin(BasePlugin):
         box = btn.bounding_box()
 
         if box:
-            # 计算目标位置：滑块移动距离 + Logo宽度 + 手动偏移量
             target_x = box["x"] + move_dx + logo_width + self.selectors.MANUAL_OFFSET
 
-            # 模拟人工拖动：移动到按钮 -> 按下 -> 拖动到目标位置 -> 释放
+            # 模拟人工拖动
             page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
             page.mouse.down()
             page.mouse.move(target_x, box["y"] + box["height"] / 2, steps=10)
             page.mouse.up()
 
         page.wait_for_timeout(3000)
-
-    @property
-    def selectors(self):
-        return ShixinCSRCSelectors
 
     def handle_search_error(self, page: Page, error: Exception) -> Optional[str]:
         """自定义错误信息"""
@@ -134,18 +127,3 @@ class ShixinCSRCPlugin(BasePlugin):
                 f"{failed_cnt} attempts for {name}"
             )
             raise RuntimeError("验证码验证失败")
-
-
-_plugin_instance = ShixinCSRCPlugin()
-
-
-def find_evidence_func(name: str, output_dir: str, dev: bool = False):
-    """证券期货市场失信记录查询（向后兼容函数）"""
-
-    _plugin_instance.find_evidence_func(name, output_dir, dev)
-
-
-def api_v1(input_file: str, output_dir: str, process_num: int = 10, dev: bool = False):
-    """插件入口函数（向后兼容函数）"""
-
-    _plugin_instance.api_v1(input_file, output_dir, process_num, dev)

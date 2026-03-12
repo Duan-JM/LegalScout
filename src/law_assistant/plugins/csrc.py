@@ -1,6 +1,5 @@
 """
 证监会行政处罚查询插件
-
 """
 
 from playwright.sync_api import Page
@@ -28,16 +27,3 @@ class CSRCPlugin(BasePlugin):
         safe_click(page, CSRCSelectors.MENU_ITEM)
         safe_fill(page, CSRCSelectors.SEARCH_INPUT, name)
         safe_click(page, CSRCSelectors.SEARCH_BUTTON)
-
-
-_plugin_instance = CSRCPlugin()
-
-
-def find_evidence_func(name: str, output_dir: str, dev: bool = False):
-    """证监会行政处罚查询（向后兼容函数）"""
-    _plugin_instance.find_evidence_func(name, output_dir, dev)
-
-
-def api_v1(input_file: str, output_dir: str, process_num: int = 10, dev: bool = False):
-    """插件入口函数（向后兼容函数）"""
-    _plugin_instance.api_v1(input_file, output_dir, process_num, dev)
