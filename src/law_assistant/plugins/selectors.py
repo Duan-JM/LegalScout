@@ -3,17 +3,13 @@
 用于集中管理各个插件的选择器，方便维护和更新
 """
 
-from dataclasses import dataclass
 
-
-@dataclass
 class BaseSelectors:
     """选择器基类"""
 
     BASE_URL: str
 
 
-@dataclass
 class CSRCSelectors(BaseSelectors):
     """证监会行政处罚选择器"""
 
@@ -35,7 +31,6 @@ class CSRCSelectors(BaseSelectors):
     SUCCESS_KEYWORDS = ["抱歉，没找到相关结果"]
 
 
-@dataclass
 class SSESelectors(BaseSelectors):
     """上交所信息披露选择器"""
 
@@ -56,7 +51,6 @@ class SSESelectors(BaseSelectors):
     SUCCESS_KEYWORDS = ["没有找到您"]
 
 
-@dataclass
 class SZSESelectors(BaseSelectors):
     """深交所信息披露选择器"""
 
@@ -79,7 +73,6 @@ class SZSESelectors(BaseSelectors):
     SUCCESS_KEYWORDS = ["没有找到"]
 
 
-@dataclass
 class ShixinCSRCSelectors(BaseSelectors):
     """证券期货市场失信记录选择器"""
 

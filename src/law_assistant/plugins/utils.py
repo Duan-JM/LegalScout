@@ -1,5 +1,5 @@
-import base64
 import io
+import json
 import os
 import time
 from datetime import datetime
@@ -86,9 +86,9 @@ def retry_on_failure(max_retries: int = 3, delay: int = 2, backoff: float = 1.5)
 
 def safe_click(
     page: Page, selector: str, timeout: int = 10000, retries: int = 2
-) -> bool:
+) -> None:
     """
-    安全地点击元素，带重试机制
+    安全地点击元素，带重试机制，失败时抛出异常
 
     Args:
         page: Playwright Page 对象
@@ -96,33 +96,28 @@ def safe_click(
         timeout: 超时时间（毫秒）
         retries: 重试次数
 
-    Returns:
-        bool: 点击是否成功
+    Raises:
+        RuntimeError: 所有重试均失败
     """
     for attempt in range(retries):
         try:
             page.click(selector, timeout=timeout)
             logger.debug(f"Successfully clicked: {selector}")
-            return True
+            return
         except PlaywrightTimeoutError:
             if attempt == retries - 1:
-                logger.error(
+                raise RuntimeError(
                     f"Failed to click element after {retries} attempts: {selector}"
                 )
-                return False
             logger.warning(
                 f"Click attempt {attempt + 1} failed for {selector}, retrying..."
             )
             page.wait_for_timeout(1000)
-        except Exception as e:
-            logger.error(f"Unexpected error clicking {selector}: {e}")
-            return False
-    return False
 
 
-def safe_fill(page: Page, selector: str, text: str, timeout: int = 10000) -> bool:
+def safe_fill(page: Page, selector: str, text: str, timeout: int = 10000) -> None:
     """
-    安全地填充文本
+    安全地填充文本，失败时抛出异常
 
     Args:
         page: Playwright Page 对象
@@ -130,19 +125,16 @@ def safe_fill(page: Page, selector: str, text: str, timeout: int = 10000) -> boo
         text: 要填充的文本
         timeout: 超时时间（毫秒）
 
-    Returns:
-        bool: 填充是否成功
+    Raises:
+        RuntimeError: 填充失败
     """
     try:
         page.fill(selector, text, timeout=timeout)
         logger.debug(f"Successfully filled text into: {selector}")
-        return True
     except PlaywrightTimeoutError:
-        logger.error(f"Timeout filling text into: {selector}")
-        return False
+        raise RuntimeError(f"Timeout filling text into: {selector}")
     except Exception as e:
-        logger.error(f"Error filling text into {selector}: {e}")
-        return False
+        raise RuntimeError(f"Error filling text into {selector}: {e}")
 
 
 def safe_get_text(page: Page, selector: str, timeout: int = 10000) -> Optional[str]:
@@ -171,32 +163,30 @@ def safe_get_text(page: Page, selector: str, timeout: int = 10000) -> Optional[s
         return None
 
 
-def check_search_result(
-    page: Page, selector: str, success_keywords: list, timeout: int = 10000
+def check_no_records_found(
+    page: Page, selector: str, no_record_keywords: list, timeout: int = 10000
 ) -> Tuple[bool, bool]:
     """
-    检查搜索结果
+    检查搜索结果是否为"无记录"状态
 
     Args:
         page: Playwright Page 对象
         selector: 结果元素选择器
-        success_keywords: 表示"未找到"的关键词列表（如：["没找到", "无记录"]）
+        no_record_keywords: 表示"未找到记录"的关键词列表（如：["没找到", "无记录"]）
         timeout: 超时时间（毫秒）
 
     Returns:
-        Tuple[bool, bool]: (find_normal_flag, system_error_flag)
-            - find_normal_flag: True 表示正常（未找到记录）
-            - system_error_flag: True 表示系统错误
+        Tuple[bool, bool]: (no_records_found, is_system_error)
+            - no_records_found: True 表示正常（未找到违规记录）
+            - is_system_error: True 表示系统错误
     """
     text = safe_get_text(page, selector, timeout)
 
     if text is None:
-        # 无法获取文本，可能是系统错误
         return False, True
 
-    # 检查是否包含成功关键词
-    find_normal = any(keyword in text for keyword in success_keywords)
-    return find_normal, False
+    no_records = any(keyword in text for keyword in no_record_keywords)
+    return no_records, False
 
 
 def fetch_names(input_file):
@@ -205,38 +195,113 @@ def fetch_names(input_file):
     return [x.strip() for x in names]
 
 
+def _get_progress_file(output_dir: str, plugin_name: str) -> str:
+    """获取进度记录文件路径"""
+    return os.path.join(output_dir, plugin_name, ".processed.json")
+
+
+def _load_processed_names(progress_file: str) -> set:
+    """加载已处理的名称集合"""
+    if os.path.exists(progress_file):
+        with open(progress_file, "r", encoding="utf-8") as f:
+            return set(json.load(f))
+    return set()
+
+
+def _save_processed_name(progress_file: str, name: str) -> None:
+    """追加记录一个已处理的名称"""
+    processed = _load_processed_names(progress_file)
+    processed.add(name)
+    with open(progress_file, "w", encoding="utf-8") as f:
+        json.dump(sorted(processed), f, ensure_ascii=False, indent=2)
+
+
 def generate_names(input_names, output_dir, plugin_name):
-    target_path = f"{output_dir}/{plugin_name}"
-    if os.path.exists(target_path):
-        exist_names = os.listdir(target_path)
-        logger.info(f"Found exist {len(exist_names)} pdf")
-        normal_names = [
-            ".".join(name.split(".")[:-1]) for name in exist_names if "异常" not in name
-        ]
-        abnormal_names = [
-            name.split("-")[0].strip() for name in exist_names if "异常" in name
-        ]
-        exist_names = normal_names + abnormal_names
-        need_fetch_names = list(set(input_names) - set(exist_names))
-    else:
-        os.mkdir(target_path)
-        logger.warning(f"No exist result found. Makedir {target_path}!")
-        need_fetch_names = input_names
+    """
+    过滤已处理的名称，返回待处理列表
+
+    使用 .processed.json 文件跟踪处理状态，
+    同时兼容旧版通过文件名判断的方式（自动迁移）
+    """
+    target_path = os.path.join(output_dir, plugin_name)
+    progress_file = _get_progress_file(output_dir, plugin_name)
+
+    if not os.path.exists(target_path):
+        os.makedirs(target_path, exist_ok=True)
+        logger.warning(f"No existing results found. Created {target_path}")
+        return input_names
+
+    # 加载已处理名称
+    processed = _load_processed_names(progress_file)
+
+    # 兼容旧版：如果 JSON 为空但目录有文件，从现有文件名迁移
+    if not processed:
+        exist_files = [f for f in os.listdir(target_path) if f.endswith(".png")]
+        if exist_files:
+            for fname in exist_files:
+                base = fname.rsplit(".", 1)[0]  # 去掉 .png
+                # 提取原始名称（去掉 " - 异常" / " - 系统异常" 等后缀）
+                if " - " in base:
+                    name = base.split(" - ")[0].strip()
+                else:
+                    name = base.strip()
+                processed.add(name)
+            # 保存迁移结果
+            with open(progress_file, "w", encoding="utf-8") as f:
+                json.dump(sorted(processed), f, ensure_ascii=False, indent=2)
+            logger.info(f"Migrated {len(processed)} names from existing files to progress tracker")
+
+    logger.info(f"Found {len(processed)} already processed names")
+    need_fetch_names = [n for n in input_names if n not in processed]
     return need_fetch_names
+
+
+def _get_font(size: int = 33):
+    """获取字体，按优先级尝试多个路径"""
+    font_candidates = [
+        "STHeiti Light.ttc",                          # macOS
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",  # Linux (Noto CJK)
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",           # Linux (WenQuanYi)
+    ]
+    for font_path in font_candidates:
+        try:
+            return ImageFont.truetype(font_path, size, encoding="unic")
+        except (OSError, IOError):
+            continue
+    logger.warning("No CJK font found, falling back to default font")
+    return ImageFont.load_default()
 
 
 def watermark(
     image_bytes, watermark_text: str, position: Tuple, filled_color: str = "black"
-):
-    font = ImageFont.truetype("STHeiti Light.ttc", 33, encoding="unic")
+) -> bytes:
+    """
+    给图片添加水印
+
+    Args:
+        image_bytes: 原始图片字节数据
+        watermark_text: 水印文字
+        position: 水印位置 (x, y)
+        filled_color: 水印颜色
+
+    Returns:
+        添加水印后的 PNG 图片字节数据
+    """
+    font = _get_font(33)
     image = Image.open(io.BytesIO(image_bytes))
     width, height = image.size
-    assert width > position[0] and height > position[1]
+    if width <= position[0] or height <= position[1]:
+        logger.warning(
+            f"Watermark position {position} exceeds image size {width}x{height}, "
+            "adjusting to (10, 10)"
+        )
+        position = (10, 10)
     drawing = ImageDraw.Draw(image)
     drawing.text(xy=position, text=watermark_text, fill=filled_color, font=font)
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue())
+    return buffered.getvalue()
 
 
 def capture_screenshot(
@@ -247,17 +312,15 @@ def capture_screenshot(
     position: Tuple,
     filled_color: str,
 ):
-    """Capture screenshot using Playwright Page object"""
-    # Take full page screenshot
+    """使用 Playwright 截图并添加水印后保存"""
     screenshot_bytes = page.screenshot(full_page=True)
 
     timestamp = datetime.now().strftime("%Y-%m-%d")
-    pdf_data = watermark(
+    image_data = watermark(
         image_bytes=screenshot_bytes,
         watermark_text=f"{timestamp} - {file_name}",
         position=position,
         filled_color=filled_color,
     )
     with open(f"{output_dir}/{plugin_name}/{file_name}.png", "wb") as file:
-        file.write(base64.b64decode(pdf_data))
-        file.write(base64.b64decode(pdf_data))
+        file.write(image_data)

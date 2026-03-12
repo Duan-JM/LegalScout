@@ -1,8 +1,11 @@
-from law_assistant.plugins import csrc, shixin_csrc, sse_disclosure, szse_disclosure
+from law_assistant.plugins.csrc import CSRCPlugin
+from law_assistant.plugins.shixin_csrc import ShixinCSRCPlugin
+from law_assistant.plugins.sse_disclosure import SSEDisclosurePlugin
+from law_assistant.plugins.szse_disclosure import SZSEDisclosurePlugin
 
-AVALIABLE_SOURCES_FUNCS = {
-    "csrc": csrc.api_v1,
-    "shixin_csrc": shixin_csrc.api_v1,
-    "sse_disclosure": sse_disclosure.api_v1,
-    "szse_disclosure": szse_disclosure.api_v1,
+AVAILABLE_SOURCES_FUNCS = {
+    "csrc": CSRCPlugin().api_v1,
+    "shixin_csrc": ShixinCSRCPlugin().api_v1,
+    "sse_disclosure": SSEDisclosurePlugin().api_v1,
+    "szse_disclosure": SZSEDisclosurePlugin().api_v1,
 }

@@ -5,7 +5,7 @@ from typing import List
 import structlog
 from doraemon.logger.slogger import configure_structlog
 
-from law_assistant.constants import AVALIABLE_SOURCES_FUNCS
+from law_assistant.constants import AVAILABLE_SOURCES_FUNCS
 
 configure_structlog()
 logger = structlog.getLogger(__name__)
@@ -18,24 +18,30 @@ def main(
     process_num: int,
     dev: bool = False,
 ):
-    # Step 01: Check Avaliable Inputs
-    assert os.path.exists(input_file), f"{input_file} not exist"
-    assert os.path.exists(output_dir), f"{output_dir} not exist"
-    assert all(s in AVALIABLE_SOURCES_FUNCS.keys() for s in source_list)
+    # Step 01: Check Available Inputs
+    if not os.path.exists(input_file):
+        raise FileNotFoundError(f"Input file not found: {input_file}")
+    if not os.path.exists(output_dir):
+        raise FileNotFoundError(f"Output directory not found: {output_dir}")
+    invalid_sources = [s for s in source_list if s not in AVAILABLE_SOURCES_FUNCS]
+    if invalid_sources:
+        raise ValueError(
+            f"Unknown sources: {invalid_sources}. "
+            f"Available: {list(AVAILABLE_SOURCES_FUNCS.keys())}"
+        )
 
     # Step 02: Generate Results
     for idx, source in enumerate(source_list):
-        logger.info(f"Starting fetch from {source} with input_file {input_file};")
-        AVALIABLE_SOURCES_FUNCS[source](
+        logger.info("Starting fetch", source=source, input_file=input_file)
+        AVAILABLE_SOURCES_FUNCS[source](
             input_file=input_file,
             output_dir=output_dir,
             process_num=process_num,
             dev=dev,
         )
-        logger.info(
-            f"Finished fetch from {source}, {len(source_list) - idx - 1} remained"
-        )
-    logger.info(f"Finished, please check your result in {output_dir}")
+        remaining = len(source_list) - idx - 1
+        logger.info("Finished fetch", source=source, remaining=remaining)
+    logger.info("All done", output_dir=output_dir)
 
 
 if __name__ == "__main__":
@@ -43,7 +49,7 @@ if __name__ == "__main__":
     parser.add_argument("--input_file", help="Name file")
     parser.add_argument("--sources", help="Sources")
     parser.add_argument("--output_dir", help="Output")
-    parser.add_argument("--debug", default=False, help="Debug mode")
+    parser.add_argument("--debug", action="store_true", help="Debug mode")
     parser.add_argument("--process_num", type=int, help="process_num")
     args = parser.parse_args()
 

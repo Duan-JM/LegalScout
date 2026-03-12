@@ -6,7 +6,7 @@
 
 from abc import ABC, abstractmethod
 from functools import partial
-from multiprocessing import Pool
+from multiprocessing import get_context
 from typing import Optional, Tuple
 
 import structlog
@@ -14,8 +14,10 @@ from playwright.sync_api import Page, sync_playwright
 from tqdm import tqdm
 
 from law_assistant.plugins.utils import (capture_screenshot,
-                                         check_search_result, fetch_names,
-                                         generate_names, get_browser_and_page)
+                                         check_no_records_found, fetch_names,
+                                         generate_names, get_browser_and_page,
+                                         _get_progress_file,
+                                         _save_processed_name)
 
 logger = structlog.getLogger(__name__)
 
@@ -121,11 +123,15 @@ class BasePlugin(ABC):
         """
         统一的结果检查逻辑
 
-        使用 check_search_result 工具函数检查结果
+        使用 check_no_records_found 工具函数检查结果
+
+        Returns:
+            True 表示正常（未找到违规记录），False 表示发现异常记录或系统错误
         """
-        return check_search_result(
+        is_normal, _is_error = check_no_records_found(
             page, self.selectors.RESULT_TEXT, self.selectors.SUCCESS_KEYWORDS
         )
+        return is_normal
 
     def find_evidence_func(self, name: str, output_dir: str, dev: bool = False) -> None:
         """
@@ -147,19 +153,18 @@ class BasePlugin(ABC):
         """
         with sync_playwright() as p:
             browser, page, context = get_browser_and_page(p, dev=dev)
+            log = logger.bind(plugin=self.plugin_name, name=name)
 
             try:
                 # Step 1: 导航到目标页面
-                logger.info(
-                    f"[{self.plugin_name}] Navigating to {self.base_url} for {name}"
-                )
+                log.info("Navigating to target page", url=self.base_url)
                 page.goto(self.base_url, timeout=self.page_load_timeout)
 
                 # Step 2: 搜索前准备（钩子）
                 self.before_search(page)
 
                 # Step 3: 执行搜索（核心逻辑，子类实现）
-                logger.info(f"[{self.plugin_name}] Executing search for {name}")
+                log.info("Executing search")
                 self.execute_search(page, name, context)
 
                 # Step 4: 检查搜索结果（子类实现）
@@ -174,14 +179,18 @@ class BasePlugin(ABC):
                 # Step 7: 保存截图
                 self._save_screenshot(page, file_name, output_dir)
 
-                logger.info(f"[{self.plugin_name}] Successfully processed {name}")
+                # Step 8: 记录已处理
+                progress_file = _get_progress_file(output_dir, self.plugin_name)
+                _save_processed_name(progress_file, name)
+
+                log.info("Successfully processed")
 
             except Exception as e:
-                # Step 8: 异常处理
+                # Step 9: 异常处理
                 self._handle_error(page, name, e, output_dir)
 
             finally:
-                # Step 9: 资源清理
+                # Step 10: 资源清理
                 browser.close()
 
     def api_v1(
@@ -212,19 +221,22 @@ class BasePlugin(ABC):
         )
 
         logger.info(
-            f"[{self.plugin_name}] Processing {len(names)} names "
-            f"with {process_num} processes"
+            "Processing names",
+            plugin=self.plugin_name,
+            count=len(names),
+            processes=process_num,
         )
 
         pbar = tqdm(total=len(names), desc=self.plugin_name)
-        with Pool(processes=process_num) as pool:
+        ctx = get_context("spawn")
+        with ctx.Pool(processes=process_num) as pool:
             for _ in pool.imap_unordered(
                 partial(self.find_evidence_func, output_dir=output_dir, dev=dev), names
             ):
                 pbar.update(1)
 
         pbar.close()
-        logger.info(f"[{self.plugin_name}] Completed processing all names")
+        logger.info("Completed processing all names", plugin=self.plugin_name)
 
     # ========== 私有辅助方法 ==========
 
@@ -240,10 +252,10 @@ class BasePlugin(ABC):
             文件名字符串
         """
         if is_success:
-            logger.info(f"[{self.plugin_name}] No records found for {name}")
+            logger.info("No records found", plugin=self.plugin_name, name=name)
             return name
         else:
-            logger.warning(f"[{self.plugin_name}] Found abnormal records for {name}")
+            logger.warning("Found abnormal records", plugin=self.plugin_name, name=name)
             return name + " - 异常"
 
     def _save_screenshot(self, page: Page, file_name: str, output_dir: str) -> None:
@@ -276,21 +288,24 @@ class BasePlugin(ABC):
             error: 捕获的异常
             output_dir: 输出目录
         """
-        # 尝试自定义错误处理
         custom_suffix = self.handle_search_error(page, error)
         suffix = custom_suffix if custom_suffix else "系统异常"
 
         file_name = f"{name} - {suffix}"
         logger.error(
-            f"[{self.plugin_name}] Error while processing {name}: {str(error)}",
+            "Error while processing",
+            plugin=self.plugin_name,
+            name=name,
+            error=str(error),
             exc_info=True,
         )
 
-        # 尝试保存错误截图
         try:
             self._save_screenshot(page, file_name, output_dir)
         except Exception as screenshot_error:
             logger.error(
-                f"[{self.plugin_name}] Failed to capture error screenshot "
-                f"for {name}: {screenshot_error}"
+                "Failed to capture error screenshot",
+                plugin=self.plugin_name,
+                name=name,
+                error=str(screenshot_error),
             )
