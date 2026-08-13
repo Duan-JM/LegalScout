@@ -1,21 +1,20 @@
-version: '3.8'
-
 services:
   browserless:
-    image: browserless/chrome:latest
+    # Optional Remote CDP provider. Set
+    # BROWSERLESS_URL=ws://localhost:3000?token=legalscout-local
+    # before running LegalScout; local Chrome remains the default.
+    image: ghcr.io/browserless/chromium:latest
     container_name: legalscout-browserless
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      # 最大并发会话数
-      - MAX_CONCURRENT_SESSIONS=10
-      # 最大队列长度
-      - MAX_QUEUE_LENGTH=20
-      # 连接超时（毫秒）
-      - CONNECTION_TIMEOUT=60000
-      # 启用调试日志
+      - TOKEN=${BROWSERLESS_TOKEN:-legalscout-local}
+      - CONCURRENT=10
+      - QUEUED=20
+      - TIMEOUT=60000
       - DEBUG=browserless*
+    shm_size: "2g"
     # 资源限制
     deploy:
       resources:
@@ -27,7 +26,7 @@ services:
           memory: 1G
     # 健康检查
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/active?token=$$TOKEN"]
       interval: 30s
       timeout: 10s
       retries: 3
