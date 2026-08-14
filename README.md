@@ -14,6 +14,18 @@ go install github.com/Duan-JM/LegalScout/cmd/legalscout@latest
 go build -o legalscout ./cmd/legalscout
 ```
 
+macOS 上也可把当前仓库注册为仅限本机的 Homebrew tap，再从本地 `main` 分支当前已提交的 HEAD 构建并管理开发版：
+
+```bash
+make brew-install-dev
+# 提交新代码后更新已安装的开发版：
+make brew-reinstall-dev
+# 卸载开发版：
+make brew-uninstall-dev
+```
+
+开发版的 Homebrew Formula 安装名为 `legalscout-dev`，命令仍为 `legalscout`。安装和更新命令会同步本地 tap，但构建只包含本地 `main` 分支已提交的内容，不包含其它分支或工作区中未提交的改动。若以后安装同样提供 `legalscout` 命令的稳定版，需要先卸载开发版；开发版卸载命令也会移除这个本地 tap。
+
 先检查运行环境：
 
 ```bash
